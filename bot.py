@@ -1,69 +1,70 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+import os
+import json
 
-# داده نمونه (همون data.json به شکل دیکشنری)
-data = {
-    "خطبه‌ها": {
-        "خطبه 1": "سپاس خدایی را سزاست که آفرینش را آغاز کرد...",
-        "خطبه 2": "خداوند را سپاس می‌گویم که ما را به راه هدایت نمود...",
-        "خطبه 3": "ای مردم، تقوا پیشه کنید و از خدا بترسید..."
-    },
-    "نامه‌ها": {
-        "نامه 1": "از علی بن ابی‌طالب به مالک اشتر...",
-        "نامه 2": "نامه به معاویه که در آن او را از دشمنی نهی می‌کند...",
-        "نامه 3": "نامه‌ای به عبدالله بن عباس که او را به تقوا فرا می‌خواند..."
-    },
-    "حکمت‌ها": {
-        "حکمت 1": "ارزش هر کس به اندازه کاری است که آن را نیکو انجام می‌دهد.",
-        "حکمت 2": "سکوت، پوششی برای نادانی و زینتی برای دانا است.",
-        "حکمت 3": "کسی که نفس خود را بشناسد، پروردگارش را شناخته است."
-    }
-}
+# ---------- Load data ----------
+with open("data.json", "r", encoding="utf-8") as f:
+    data = json.load(f)
 
+# ---------- Keyboards ----------
+main_keyboard = ReplyKeyboardMarkup(
+    [["▶️ شروع", "⬅️ برگشت"], ["🔄 پاک کردن صفحه"]],
+    resize_keyboard=True
+)
+
+def get_main_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("خطبه‌ها", callback_data="خطبه‌ها")],
+        [InlineKeyboardButton("نامه‌ها", callback_data="نامه‌ها")],
+        [InlineKeyboardButton("حکمت‌ها", callback_data="حکمت‌ها")]
+    ])
+
+# ---------- Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("خطبه‌ها", callback_data='خطبه‌ها')],
-        [InlineKeyboardButton("نامه‌ها", callback_data='نامه‌ها')],
-        [InlineKeyboardButton("حکمت‌ها", callback_data='حکمت‌ها')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("📚 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=reply_markup)
+    await update.message.reply_text("👋 سلام! یکی از دسته‌ها رو انتخاب کن:", reply_markup=get_main_menu())
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+
+    if text == "▶️ شروع":
+        await update.message.reply_text("📚 دسته موردنظر رو انتخاب کن:", reply_markup=get_main_menu())
+    elif text == "⬅️ برگشت":
+        await update.message.reply_text("🔙 برگشتی به منوی اصلی.", reply_markup=get_main_menu())
+    elif text == "🔄 پاک کردن صفحه":
+        await update.message.reply_text("✅ صفحه پاک شد.", reply_markup=main_keyboard)
+    else:
+        await update.message.reply_text("❓ لطفاً یکی از دکمه‌ها رو انتخاب کن.", reply_markup=main_keyboard)
+
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    category = query.data
+    choice = query.data
+
+    if choice in data:
+        buttons = [
+            [InlineKeyboardButton(key, callback_data=f"{choice}|{key}")]
+            for key in data[choice].keys()
+        ]
+        buttons.append([InlineKeyboardButton("⬅️ بازگشت", callback_data="بازگشت")])
+        await query.edit_message_text(f"📂 {choice}:", reply_markup=InlineKeyboardMarkup(buttons))
     
-    if category in data:
-        keyboard = []
-        for key in data[category].keys():
-            keyboard.append([InlineKeyboardButton(key, callback_data=f"{category}|{key}")])
-        keyboard.append([InlineKeyboardButton("بازگشت", callback_data="بازگشت")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"✅ {category} مورد نظر را انتخاب کنید:", reply_markup=reply_markup)
-    
-    elif '|' in category:
-        cat, item = category.split('|')
-        text = data.get(cat, {}).get(item, "متاسفانه اطلاعاتی یافت نشد.")
+    elif "|" in choice:
+        cat, item = choice.split("|")
+        text = data[cat][item]
         await query.edit_message_text(f"📖 {item}:\n\n{text}")
     
-    elif category == "بازگشت":
-        await query.edit_message_text(
-            "📚 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("خطبه‌ها", callback_data='خطبه‌ها')],
-                [InlineKeyboardButton("نامه‌ها", callback_data='نامه‌ها')],
-                [InlineKeyboardButton("حکمت‌ها", callback_data='حکمت‌ها')]
-            ])
-        )
+    elif choice == "بازگشت":
+        await query.edit_message_text("📚 دسته موردنظر رو انتخاب کن:", reply_markup=get_main_menu())
 
-if __name__ == '__main__':
-    import os
-    token = os.environ.get('TOKEN')  # توکن رو باید تو محیط متغیر بگذاری
-    
+# ---------- Run bot ----------
+if __name__ == "__main__":
+    token = os.environ.get("TOKEN")
     app = ApplicationBuilder().token(token).build()
-    app.add_handler(CommandHandler('start', start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    
-    print("Bot started...")
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(handle_button))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
+    print("✅ Bot is running...")
     app.run_polling()
