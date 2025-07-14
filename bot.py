@@ -7,12 +7,13 @@ import os
 with open("data.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
-# منوی اصلی کیبورد ثابت پایین
+# دکمه‌های کیبورد پایین چت
 main_keyboard = ReplyKeyboardMarkup(
-    [["▶️ شروع", "⬅️ برگشت", "🔄 پاک کردن صفحه"]], resize_keyboard=True
+    [["▶️ شروع", "⬅️ برگشت", "🔄 پاک کردن صفحه"]],
+    resize_keyboard=True
 )
 
-# منوی دسته بندی ها
+# منوی اصلی دسته‌بندی‌ها
 def main_menu():
     keyboard = [
         [InlineKeyboardButton("خطبه‌ها", callback_data="menu_خطبه‌ها")],
@@ -21,7 +22,7 @@ def main_menu():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# منوی فهرست بر اساس دسته
+# فهرست هر دسته
 def submenu(category):
     keyboard = []
     for key in data.get(category, {}):
@@ -29,58 +30,63 @@ def submenu(category):
     keyboard.append([InlineKeyboardButton("⬅️ بازگشت", callback_data="بازگشت_به_منو")])
     return InlineKeyboardMarkup(keyboard)
 
+# شروع ربات
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "سلام! به ربات نهج البلاغه خوش آمدید.\nلطفا یکی از دسته‌ها را انتخاب کنید:",
-        reply_markup=main_menu()
+        "🌿 به ربات نهج‌البلاغه خوش آمدی!\nیکی از گزینه‌ها رو انتخاب کن:",
+        reply_markup=main_keyboard
     )
 
+# وقتی روی دکمه‌ها کلیک می‌شه
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     data_callback = query.data
 
     if data_callback.startswith("menu_"):
         category = data_callback.split("_")[1]
         await query.edit_message_text(
-            text=f"لطفا یکی از {category} را انتخاب کنید:",
+            text=f"📚 فهرست {category}:",
             reply_markup=submenu(category)
         )
     elif "::" in data_callback:
         category, key = data_callback.split("::", 1)
-        text = data.get(category, {}).get(key, "محتوا یافت نشد.")
+        text = data.get(category, {}).get(key, "❌ محتوا یافت نشد.")
         keyboard = InlineKeyboardMarkup(
             [[InlineKeyboardButton("⬅️ بازگشت", callback_data=f"menu_{category}")]]
         )
         await query.edit_message_text(text=text, reply_markup=keyboard)
     elif data_callback == "بازگشت_به_منو":
         await query.edit_message_text(
-            text="لطفا یکی از دسته‌ها را انتخاب کنید:",
+            text="🌿 لطفاً یکی از دسته‌ها رو انتخاب کن:",
             reply_markup=main_menu()
         )
 
+# واکنش به پیام‌های متنی
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "▶️ شروع":
-        await start(update, context)
+        await update.message.reply_text(
+            "📖 یکی از دسته‌ها رو انتخاب کن:",
+            reply_markup=main_menu()
+        )
     elif text == "⬅️ برگشت":
         await update.message.reply_text(
-            "شما در منوی اصلی هستید.",
+            "🔙 برگشت به منوی اصلی:",
             reply_markup=main_menu()
         )
     elif text == "🔄 پاک کردن صفحه":
-        await update.message.delete()
         await update.message.reply_text(
-            "صفحه پاک شد.",
+            "✅ صفحه پاک شد. دوباره از دکمه‌ها استفاده کن.",
             reply_markup=main_keyboard
         )
     else:
         await update.message.reply_text(
-            "دستور شناخته نشد. لطفا از دکمه‌ها استفاده کنید.",
+            "❓ لطفاً از دکمه‌ها استفاده کن.",
             reply_markup=main_keyboard
         )
 
+# اجرای ربات
 def main():
     token = os.getenv("TOKEN")
     app = ApplicationBuilder().token(token).build()
@@ -89,7 +95,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
-    print("Bot started...")
+    print("🤖 ربات فعال شد...")
     app.run_polling()
 
 if __name__ == "__main__":
