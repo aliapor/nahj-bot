@@ -1,48 +1,69 @@
-import os
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-import json
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# بارگذاری داده‌ها از فایل
-with open("data.json", "r", encoding="utf-8") as f:
-    data = json.load(f)
-
-# توکن ربات از متغیر محیطی
-TOKEN = os.getenv("TOKEN")
-
-# دسته‌بندی‌ها
-categories = {
-    "خطبه‌ها": list(data["خطبه‌ها"].keys()),
-    "نامه‌ها": list(data["نامه‌ها"].keys()),
-    "حکمت‌ها": list(data["حکمت‌ها"].keys())
+# داده نمونه (همون data.json به شکل دیکشنری)
+data = {
+    "خطبه‌ها": {
+        "خطبه 1": "سپاس خدایی را سزاست که آفرینش را آغاز کرد...",
+        "خطبه 2": "خداوند را سپاس می‌گویم که ما را به راه هدایت نمود...",
+        "خطبه 3": "ای مردم، تقوا پیشه کنید و از خدا بترسید..."
+    },
+    "نامه‌ها": {
+        "نامه 1": "از علی بن ابی‌طالب به مالک اشتر...",
+        "نامه 2": "نامه به معاویه که در آن او را از دشمنی نهی می‌کند...",
+        "نامه 3": "نامه‌ای به عبدالله بن عباس که او را به تقوا فرا می‌خواند..."
+    },
+    "حکمت‌ها": {
+        "حکمت 1": "ارزش هر کس به اندازه کاری است که آن را نیکو انجام می‌دهد.",
+        "حکمت 2": "سکوت، پوششی برای نادانی و زینتی برای دانا است.",
+        "حکمت 3": "کسی که نفس خود را بشناسد، پروردگارش را شناخته است."
+    }
 }
 
-# دکمه‌ها
-keyboard = [["خطبه‌ها"], ["نامه‌ها"], ["حکمت‌ها"]]
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "به ربات نهج‌البلاغه خوش آمدید.\nیکی از گزینه‌ها را انتخاب کنید:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    )
+    keyboard = [
+        [InlineKeyboardButton("خطبه‌ها", callback_data='خطبه‌ها')],
+        [InlineKeyboardButton("نامه‌ها", callback_data='نامه‌ها')],
+        [InlineKeyboardButton("حکمت‌ها", callback_data='حکمت‌ها')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("📚 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=reply_markup)
 
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    category = query.data
     
-    if text in categories:
-        items = categories[text]
-        response = f"{text}:\n" + "\n".join(items[:30])
-        await update.message.reply_text(response)
+    if category in data:
+        keyboard = []
+        for key in data[category].keys():
+            keyboard.append([InlineKeyboardButton(key, callback_data=f"{category}|{key}")])
+        keyboard.append([InlineKeyboardButton("بازگشت", callback_data="بازگشت")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"✅ {category} مورد نظر را انتخاب کنید:", reply_markup=reply_markup)
     
-    else:
-        for section in data:
-            if text in data[section]:
-                await update.message.reply_text(f"{text}:\n{data[section][text]}")
-                return
-        await update.message.reply_text("موردی یافت نشد!")
+    elif '|' in category:
+        cat, item = category.split('|')
+        text = data.get(cat, {}).get(item, "متاسفانه اطلاعاتی یافت نشد.")
+        await query.edit_message_text(f"📖 {item}:\n\n{text}")
+    
+    elif category == "بازگشت":
+        await query.edit_message_text(
+            "📚 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("خطبه‌ها", callback_data='خطبه‌ها')],
+                [InlineKeyboardButton("نامه‌ها", callback_data='نامه‌ها')],
+                [InlineKeyboardButton("حکمت‌ها", callback_data='حکمت‌ها')]
+            ])
+        )
 
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    import os
+    token = os.environ.get('TOKEN')  # توکن رو باید تو محیط متغیر بگذاری
+    
+    app = ApplicationBuilder().token(token).build()
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    
+    print("Bot started...")
     app.run_polling()
