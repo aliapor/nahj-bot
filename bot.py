@@ -1,46 +1,47 @@
-import json
 import os
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+import json
 
-TOKEN = os.getenv('TOKEN')
-
-with open('data.json', 'r', encoding='utf-8') as f:
+# بارگذاری داده‌ها
+with open("data.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("سلام! خوش آمدید به ربات نهج‌البلاغه. /help را بفرستید.")
+TOKEN = os.getenv("TOKEN")
 
-def help_command(update: Update, context: CallbackContext):
-    update.message.reply_text("/list - فهرست\n/get 1 - نمایش متن شماره 1")
+# ساخت لیست فهرست‌ها
+categories = {
+    "خطبه‌ها": list(data["خطبه‌ها"].keys()),
+    "نامه‌ها": list(data["نامه‌ها"].keys()),
+    "حکمت‌ها": list(data["حکمت‌ها"].keys())
+}
 
-def list_command(update: Update, context: CallbackContext):
-    message = "فهرست مطالب:\n"
-    for i, item in enumerate(data, 1):
-        message += f"{i}. {item['type']} شماره {item['number']}\n"
-    update.message.reply_text(message)
+keyboard = [["خطبه‌ها"], ["نامه‌ها"], ["حکمت‌ها"]]
 
-def get_command(update: Update, context: CallbackContext):
-    args = context.args
-    if not args or not args[0].isdigit():
-        update.message.reply_text("لطفا شماره صحیح وارد کنید. مثلا: /get 2")
-        return
-    index = int(args[0]) - 1
-    if index < 0 or index >= len(data):
-        update.message.reply_text("شماره خارج از محدوده.")
-        return
-    item = data[index]
-    update.message.reply_text(f"{item['type']} شماره {item['number']}:\n\n{item['translation']}")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "به ربات نهج‌البلاغه خوش آمدید.\nیکی از گزینه‌ها را انتخاب کنید:",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    )
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help_command))
-    dp.add_handler(CommandHandler("list", list_command))
-    dp.add_handler(CommandHandler("get", get_command))
-    updater.start_polling()
-    updater.idle()
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    
+    if text in categories:
+        items = categories[text]
+        response = f"{text}:\n" + "\n".join(items[:30])  # فقط 30 مورد اول برای مثال
+        await update.message.reply_text(response)
+    
+    else:
+        # جستجو در تمام دسته‌ها
+        for section in data:
+            if text in data[section]:
+                await update.message.reply_text(f"{text}:\n{data[section][text]}")
+                return
+        await update.message.reply_text("موردی یافت نشد!")
 
 if __name__ == '__main__':
-    main()
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    app.run_polling()
