@@ -1,102 +1,94 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+import telebot
+from telebot import types
 import json
-import os
 
-# Load data.json
-with open("data.json", "r", encoding="utf-8") as f:
+TOKEN = "8037640720:AAGrKf2KH488zKE48FYAehCX_bBnIQie-AQ"
+
+bot = telebot.TeleBot(TOKEN)
+
+with open('data.json', 'r', encoding='utf-8') as f:
     data = json.load(f)
 
-# دکمه‌های کیبورد پایین چت
-main_keyboard = ReplyKeyboardMarkup(
-    [["▶️ شروع", "⬅️ برگشت", "🔄 پاک کردن صفحه"]],
-    resize_keyboard=True
-)
-
-# منوی اصلی دسته‌بندی‌ها
 def main_menu():
-    keyboard = [
-        [InlineKeyboardButton("خطبه‌ها", callback_data="menu_خطبه‌ها")],
-        [InlineKeyboardButton("نامه‌ها", callback_data="menu_نامه‌ها")],
-        [InlineKeyboardButton("حکمت‌ها", callback_data="menu_حکمت‌ها")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# فهرست هر دسته
-def submenu(category):
-    keyboard = []
-    for key in data.get(category, {}):
-        keyboard.append([InlineKeyboardButton(key, callback_data=f"{category}::{key}")])
-    keyboard.append([InlineKeyboardButton("⬅️ بازگشت", callback_data="بازگشت_به_منو")])
-    return InlineKeyboardMarkup(keyboard)
-
-# شروع ربات
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🌿 به ربات نهج‌البلاغه خوش آمدی!\nیکی از گزینه‌ها رو انتخاب کن:",
-        reply_markup=main_keyboard
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("📜 خطبه‌ها", callback_data="menu_khotbeh"),
+        types.InlineKeyboardButton("📨 نامه‌ها", callback_data="menu_nameh"),
+        types.InlineKeyboardButton("💎 حکمت‌ها", callback_data="menu_hekmat")
     )
+    return markup
 
-# وقتی روی دکمه‌ها کلیک می‌شه
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data_callback = query.data
+def back_button():
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_menu"))
+    return markup
 
-    if data_callback.startswith("menu_"):
-        category = data_callback.split("_")[1]
-        await query.edit_message_text(
-            text=f"📚 فهرست {category}:",
-            reply_markup=submenu(category)
-        )
-    elif "::" in data_callback:
-        category, key = data_callback.split("::", 1)
-        text = data.get(category, {}).get(key, "❌ محتوا یافت نشد.")
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("⬅️ بازگشت", callback_data=f"menu_{category}")]]
-        )
-        await query.edit_message_text(text=text, reply_markup=keyboard)
-    elif data_callback == "بازگشت_به_منو":
-        await query.edit_message_text(
-            text="🌿 لطفاً یکی از دسته‌ها رو انتخاب کن:",
-            reply_markup=main_menu()
-        )
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.send_message(message.chat.id, "به ربات نهج‌البلاغه خوش آمدید! لطفاً یکی از بخش‌ها را انتخاب کنید:", reply_markup=main_menu())
 
-# واکنش به پیام‌های متنی
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text == "▶️ شروع":
-        await update.message.reply_text(
-            "📖 یکی از دسته‌ها رو انتخاب کن:",
-            reply_markup=main_menu()
-        )
-    elif text == "⬅️ برگشت":
-        await update.message.reply_text(
-            "🔙 برگشت به منوی اصلی:",
-            reply_markup=main_menu()
-        )
-    elif text == "🔄 پاک کردن صفحه":
-        await update.message.reply_text(
-            "✅ صفحه پاک شد. دوباره از دکمه‌ها استفاده کن.",
-            reply_markup=main_keyboard
-        )
-    else:
-        await update.message.reply_text(
-            "❓ لطفاً از دکمه‌ها استفاده کن.",
-            reply_markup=main_keyboard
-        )
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    bot.answer_callback_query(call.id)
+    
+    if call.data == "menu_khotbeh":
+        text = "خطبه‌ها:\n"
+        for key in data["خطبه‌ها"]:
+            text += f"- {key}\n"
+        text += "\nبرای دیدن متن خطبه روی نام آن کلیک کنید."
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for key in data["خطبه‌ها"]:
+            markup.add(types.InlineKeyboardButton(key, callback_data=f"khotbeh_{key}"))
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup)
+        
+    elif call.data == "menu_nameh":
+        text = "نامه‌ها:\n"
+        for key in data["نامه‌ها"]:
+            text += f"- {key}\n"
+        text += "\nبرای دیدن متن نامه روی نام آن کلیک کنید."
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for key in data["نامه‌ها"]:
+            markup.add(types.InlineKeyboardButton(key, callback_data=f"nameh_{key}"))
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup)
+        
+    elif call.data == "menu_hekmat":
+        text = "حکمت‌ها:\n"
+        for key in data["حکمت‌ها"]:
+            text += f"- {key}\n"
+        text += "\nبرای دیدن متن حکمت روی نام آن کلیک کنید."
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for key in data["حکمت‌ها"]:
+            markup.add(types.InlineKeyboardButton(key, callback_data=f"hekmat_{key}"))
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup)
 
-# اجرای ربات
-def main():
-    token = os.getenv("TOKEN")
-    app = ApplicationBuilder().token(token).build()
+    elif call.data.startswith("khotbeh_"):
+        key = call.data.replace("khotbeh_", "")
+        text = f"{key}:\n\n{data['خطبه‌ها'][key]}"
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=back_button())
+        
+    elif call.data.startswith("nameh_"):
+        key = call.data.replace("nameh_", "")
+        text = f"{key}:\n\n{data['نامه‌ها'][key]}"
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=back_button())
+        
+    elif call.data.startswith("hekmat_"):
+        key = call.data.replace("hekmat_", "")
+        text = f"{key}:\n\n{data['حکمت‌ها'][key]}"
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=back_button())
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-
-    print("🤖 ربات فعال شد...")
-    app.run_polling()
+    elif call.data == "back_to_menu":
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                              text="به منوی اصلی بازگشتید. لطفاً یکی از بخش‌ها را انتخاب کنید:", reply_markup=main_menu())
 
 if __name__ == "__main__":
-    main()
+    print("Bot started!")
+    bot.infinity_polling()
