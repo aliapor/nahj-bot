@@ -4,6 +4,20 @@ import threading
 import json
 
 API_TOKEN = '8037640720:AAGrKf2KH488zKE48FYAehCX_bBnIQie-AQ'
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("🎬 شروع")
+    bot.send_message(
+        message.chat.id,
+        "🎉 خوش‌اومدی به دنیای نور و کلام حکمت!\n"
+        "📜 اینجا ربات «نهج‌البلاغه به زبان فارسی روان» هست...\n"
+        "جایی برای تأمل، تفکر، و قدم زدن در سخنان امام علی علیه‌السلام 🌿\n\n"
+        "👇 برای شروع روی دکمه زیر بزن:",
+        reply_markup=markup
+    )
+
+bot.polling()
 
 bot = telebot.TeleBot(API_TOKEN)
 
